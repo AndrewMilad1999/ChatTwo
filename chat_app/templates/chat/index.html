@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الصفحة الرئيسية - موقع الدردشة</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Tajawal', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .chat-container {
+            height: calc(100vh - 56px);
+            display: flex;
+        }
+        .sidebar {
+            width: 280px;
+            background-color: #fff;
+            border-left: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #f8f9fa;
+        }
+        .user-header {
+            padding: 15px;
+            background-color: #3498db;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .user-item {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        .user-item:hover {
+            background-color: #f0f0f0;
+        }
+        .user-item.active {
+            background-color: #e3f2fd;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #3498db;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+        .user-info {
+            flex: 1;
+        }
+        .user-name {
+            font-weight: bold;
+        }
+        .user-status {
+            font-size: 12px;
+            color: #666;
+        }
+        .welcome-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+        .welcome-title {
+            color: #3498db;
+            margin-bottom: 20px;
+        }
+        .welcome-text {
+            color: #666;
+            max-width: 500px;
+        }
+        .group-section {
+            padding: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .group-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .create-group-btn {
+            width: 100%;
+            background-color: #2ecc71;
+            border: none;
+        }
+        .create-group-btn:hover {
+            background-color: #27ae60;
+        }
+        .ad-container {
+            padding: 10px;
+            background-color: #f8f9fa;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .search-box {
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .logout-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 16px;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                position: absolute;
+                height: calc(100vh - 56px);
+                z-index: 10;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+            }
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            .toggle-sidebar {
+                display: block !important;
+            }
+        }
+        .toggle-sidebar {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">موقع الدردشة</a>
+            <button class="toggle-sidebar">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="ms-auto">
+                <span class="navbar-text me-3">
+                    مرحباً، {{ session.username }}
+                </span>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-light btn-sm">تسجيل الخروج</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="chat-container">
+        <div class="sidebar">
+            <div class="ad-container">
+                <p class="mb-0">مساحة إعلانية</p>
+            </div>
+            
+            <div class="search-box">
+                <input type="text" class="form-control" id="userSearch" placeholder="البحث عن مستخدم...">
+            </div>
+            
+            <div class="user-header">
+                <h5 class="mb-0">المستخدمون المتصلون</h5>
+                <button class="logout-btn" id="refreshUsers">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            
+            <div class="user-list" id="userList">
+                <!-- سيتم ملء هذا القسم ديناميكياً -->
+            </div>
+            
+            <div class="group-section">
+                <div class="group-title">المجموعات</div>
+                <div id="groupList" class="mb-3">
+                    <!-- سيتم ملء هذا القسم ديناميكياً -->
+                </div>
+                <button class="btn btn-success create-group-btn" data-bs-toggle="modal" data-bs-target="#createGroupModal">
+                    <i class="fas fa-plus"></i> إنشاء مجموعة جديدة
+                </button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="welcome-screen" id="welcomeScreen">
+                <h2 class="welcome-title">مرحباً بك في موقع الدردشة!</h2>
+                <p class="welcome-text">اختر مستخدماً من القائمة للبدء في الدردشة، أو قم بإنشاء مجموعة جديدة للدردشة الجماعية.</p>
+            </div>
+            
+            <div id="chatScreen" style="display: none; flex: 1; overflow: hidden;">
+                <!-- سيتم ملء هذا القسم ديناميكياً عند اختيار محادثة -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal إنشاء مجموعة جديدة -->
+    <div class="modal fade" id="createGroupModal" tabindex="-1" aria-labelledby="createGroupModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createGroupModalLabel">إنشاء مجموعة جديدة</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="groupName" class="form-label">اسم المجموعة</label>
+                        <input type="text" class="form-control" id="groupName" placeholder="أدخل اسم المجموعة">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="button" class="btn btn-primary" id="createGroupBtn">إنشاء</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // إعداد Socket.IO
+            const socket = io();
+            
+            // المتغيرات العامة
+            let currentChatUserId = null;
+            let currentChatType = null; // 'user' أو 'group'
+            let currentGroupId = null;
+            
+            // تحديث قائمة المستخدمين
+            function loadActiveUsers() {
+                fetch('/users/active')
+                    .then(response => response.json())
+                    .then(users => {
+                        const userList = document.getElementById('userList');
+                        userList.innerHTML = '';
+                        
+                        users.forEach(user => {
+                            if (user.id != {{ session.user_id }}) {
+                                const userItem = document.createElement('div');
+                                userItem.className = 'user-item';
+                                userItem.dataset.userId = user.id;
+                                
+                                const initial = user.username.charAt(0).toUpperCase();
+                                
+                                userItem.innerHTML = `
+                                    <div class="user-avatar">${initial}</div>
+                                    <div class="user-info">
+                                        <div class="user-name">${user.username}</div>
+                                        <div class="user-status">متصل</div>
+                                    </div>
+                                `;
+                                
+                                userItem.addEventListener('click', function() {
+                                    openChat(user.id, user.username, 'user');
+                                });
+                                
+                                userList.appendChild(userItem);
+                            }
+                        });
+                    })
+                    .catch(error => console.error('Error loading users:', error));
+            }
+            
+            // تحديث قائمة المجموعات
+            function loadUserGroups() {
+                fetch('/groups/user')
+                    .then(response => response.json())
+                    .then(groups => {
+                        const groupList = document.getElementById('groupList');
+                        groupList.innerHTML = '';
+                        
+                        groups.forEach(group => {
+                            const groupItem = document.createElement('div');
+                            groupItem.className = 'user-item';
+                            groupItem.dataset.groupId = group.id;
+                            
+                            groupItem.innerHTML = `
+                                <div class="user-avatar"><i class="fas fa-users"></i></div>
+                                <div class="user-info">
+                                    <div class="user-name">${group.name}</div>
+                                </div>
+                            `;
+                            
+                            groupItem.addEventListener('click', function() {
+                                openChat(group.id, group.name, 'group');
+                            });
+                            
+                            groupList.appendChild(groupItem);
+                        });
+                    })
+                    .catch(error => console.error('Error loading groups:', error));
+            }
+            
+            // فتح محادثة
+            function openChat(id, name, type) {
+                currentChatType = type;
+                
+                // تحديث العناصر النشطة
+                document.querySelectorAll('.user-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                
+                if (type === 'user') {
+                    currentChatUserId = id;
+                    currentGroupId = null;
+                    document.querySelector(`.user-item[data-user-id="${id}"]`).classList.add('active');
+                    loadDirectMessages(id, name);
+                } else {
+                    currentGroupId = id;
+                    currentChatUserId = null;
+                    document.querySelector(`.user-item[data-group-id="${id}"]`).classList.add('active');
+                    loadGroupMessages(id, name);
+                }
+                
+                // إخفاء شاشة الترحيب وإظهار شاشة الدردشة
+                document.getElementById('welcomeScreen').style.display = 'none';
+                document.getElementById('chatScreen').style.display = 'flex';
+                
+                // إغلاق القائمة الجانبية في الأجهزة المحمولة
+                if (window.innerWidth <= 768) {
+                    document.querySelector('.sidebar').classList.remove('show');
+                }
+            }
+            
+            // تحميل الرسائل المباشرة
+            function loadDirectMessages(userId, username) {
+                fetch(`/messages/direct/${userId}`)
+                    .then(response => response.json())
+                    .then(messages => {
+                        const chatScreen = document.getElementById('chatScreen');
+                        
+                        chatScreen.innerHTML = `
+                            <div class="chat-header p-3 bg-white border-bottom">
+                                <h5>${username}</h5>
+                            </div>
+                            <div class="chat-messages p-3" id="messageContainer" style="flex: 1; overflow-y: auto;"></div>
+                            <div class="chat-input p-3 bg-white border-top">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="messageInput" placeholder="اكتب رسالتك هنا...">
+                                    <button class="btn btn-primary" id="sendMessageBtn">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        const messageContainer = document.getElementById('messageContainer');
+                        messageContainer.innerHTML = '';
+                        
+                        messages.forEach(message => {
+                            const isCurrentUser = message.sender_id == {{ session.user_id }};
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = `message ${isCurrentUser ? 'message-sent' : 'message-received'} mb-2`;
+                            messageDiv.innerHTML = `
+                                <div class="message-content p-2 rounded ${isCurrentUser ? 'bg-primary text-white' : 'bg-light'}" style="display: inline-block; max-width: 80%; ${isCurrentUser ? 'float: left;' : 'float: right;'}">
+                                    ${message.content}
+                                    <div class="message-time small ${isCurrentUser ? 'text-white-50' : 'text-muted'}" style="text-align: ${isCurrentUser ? 'left' : 'right'}">
+                                        ${new Date(message.sent_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    </div>
+                                </div>
+                                <div style="clear: both;"></div>
+                            `;
+                            
+                            messageContainer.appendChild(messageDiv);
+                        });
+                        
+                        // التمرير إلى آخر رسالة
+                        messageContainer.scrollTop = messageContainer.scrollHeight;
+                        
+                        // إضافة مستمع الحدث لزر الإرسال
+                        document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
+                        
+                        // إضافة مستمع الحدث لمفتاح الإدخال
+                        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') {
+                                sendMessage();
+                            }
+                        });
+                        
+                        // الاشتراك في الأحداث الجديدة
+                        socket.on(`new_message_${{{ session.user_id }}}`, function(message) {
+                            if (currentChatUserId == message.sender_id && currentChatType === 'user') {
+                                addMessageToChat(message, false);
+                            }
+                        });
+                    })
+                    .catch(error => console.error('Error loading messages:', error));
+            }
+            
+            // تحميل رسائل المجموعة
+            function loadGroupMessages(groupId, groupName) {
+                fetch(`/groups/${groupId}/messages`)
+                    .then(response => response.json())
+                    .then(messages => {
+                        const chatScreen = document.getElementById('chatScreen');
+                        
+                        chatScreen.innerHTML = `
+                            <div class="chat-header p-3 bg-white border-bottom">
+                                <h5>${groupName}</h5>
+                            </div>
+                            <div class="chat-messages p-3" id="messageContainer" style="flex: 1; overflow-y: auto;"></div>
+                            <div class="chat-input p-3 bg-white border-top">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="messageInput" placeholder="اكتب رسالتك هنا...">
+                                    <button class="btn btn-primary" id="sendGroupMessageBtn">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        const messageContainer = document.getElementById('messageContainer');
+                        messageContainer.innerHTML = '';
+                        
+                        messages.forEach(message => {
+                            const isCurrentUser = message.user_id == {{ session.user_id }};
+                            const messageDiv = document.createElement('div');
+                            messageDiv.className = `message ${isCurrentUser ? 'message-sent' : 'message-received'} mb-2`;
+                            messageDiv.innerHTML = `
+                                <div class="message-content p-2 rounded ${isCurrentUser ? 'bg-primary text-white' : 'bg-light'}" style="display: inline-block; max-width: 80%; ${isCurrentUser ? 'float: left;' : 'float: right;'}">
+                                    ${!isCurrentUser ? `<strong>${message.username}</strong><br>` : ''}
+                                    ${message.content}
+                                    <div class="message-time small ${isCurrentUser ? 'text-white-50' : 'text-muted'}" style="text-align: ${isCurrentUser ? 'left' : 'right'}">
+                                        ${new Date(message.sent_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    </div>
+                                </div>
+                                <div style="clear: both;"></div>
+                            `;
+                            
+                            messageContainer.appendChild(messageDiv);
+                        });
+                        
+                        // التمرير إلى آخر رسالة
+                        messageContainer.scrollTop = messageContainer.scrollHeight;
+                        
+                        // إضافة مستمع الحدث لزر الإرسال
+                        document.getElementById('sendGroupMessageBtn').addEventListener('click', sendGroupMessage);
+                        
+                        // إضافة مستمع الحدث لمفتاح الإدخال
+                        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') {
+                                sendGroupMessage();
+                            }
+                        });
+                        
+                        // الاشتراك في الأحداث الجديدة
+                        socket.on(`group_${groupId}_new_message`, function(message) {
+                            if (currentGroupId == groupId && currentChatType === 'group') {
+                                addGroupMessageToChat(message);
+                            }
+                        });
+                    })
+                    .catch(error => console.error('Error loading group messages:', error));
+            }
+            
+            // إرسال رسالة مباشرة
+            function sendMessage() {
+                const messageInput = document.getElementById('messageInput');
+                const content = messageInput.value.trim();
+                
+                if (content && currentChatUserId) {
+                    fetch(`/messages/direct/${currentChatUserId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ content })
+                    })
+                    .then(response => response.json())
+                    .then(message => {
+                        addMessageToChat(message, true);
+                        messageInput.value = '';
+                    })
+                    .catch(error => console.error('Error sending message:', error));
+                }
+            }
+            
+            // إرسال رسالة إلى المجموعة
+            function sendGroupMessage() {
+                const messageInput = document.getElementById('messageInput');
+                const content = messageInput.value.trim();
+                
+                if (content && currentGroupId) {
+                    fetch(`/groups/${currentGroupId}/messages`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ content })
+                    })
+                    .then(response => response.json())
+                    .then(message => {
+                        addGroupMessageToChat(message);
+                        messageInput.value = '';
+                    })
+                    .catch(error => console.error('Error sending group message:', error));
+                }
+            }
+            
+            // إضافة رسالة إلى المحادثة
+            function addMessageToChat(message, isSent) {
+                const messageContainer = document.getElementById('messageContainer');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${isSent ? 'message-sent' : 'message-received'} mb-2`;
+                messageDiv.innerHTML = `
+                    <div class="message-content p-2 rounded ${isSent ? 'bg-primary text-white' : 'bg-light'}" style="display: inline-block; max-width: 80%; ${isSent ? 'float: left;' : 'float: right;'}">
+                        ${message.content}
+                        <div class="message-time small ${isSent ? 'text-white-50' : 'text-muted'}" style="text-align: ${isSent ? 'left' : 'right'}">
+                            ${new Date(message.sent_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                    </div>
+                    <div style="clear: both;"></div>
+                `;
+                
+                messageContainer.appendChild(messageDiv);
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+                
+                // تشغيل صوت الإشعار إذا كانت الرسالة مستلمة
+                if (!isSent) {
+                    playNotificationSound();
+                }
+            }
+            
+            // إضافة رسالة مجموعة إلى المحادثة
+            function addGroupMessageToChat(message) {
+                const messageContainer = document.getElementById('messageContainer');
+                const isCurrentUser = message.user_id == {{ session.user_id }};
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${isCurrentUser ? 'message-sent' : 'message-received'} mb-2`;
+                messageDiv.innerHTML = `
+                    <div class="message-content p-2 rounded ${isCurrentUser ? 'bg-primary text-white' : 'bg-light'}" style="display: inline-block; max-width: 80%; ${isCurrentUser ? 'float: left;' : 'float: right;'}">
+                        ${!isCurrentUser ? `<strong>${message.username}</strong><br>` : ''}
+                        ${message.content}
+                        <div class="message-time small ${isCurrentUser ? 'text-white-50' : 'text-muted'}" style="text-align: ${isCurrentUser ? 'left' : 'right'}">
+                            ${new Date(message.sent_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </div>
+                    </div>
+                    <div style="clear: both;"></div>
+                `;
+                
+                messageContainer.appendChild(messageDiv);
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+                
+                // تشغيل صوت الإشعار إذا كانت الرسالة من مستخدم آخر
+                if (!isCurrentUser) {
+                    playNotificationSound();
+                }
+            }
+            
+            // تشغيل صوت الإشعار
+            function playNotificationSound() {
+                // يمكن إضافة صوت الإشعار هنا
+                // const audio = new Audio('/static/sounds/notification.mp3');
+                // audio.play();
+            }
+            
+            // إنشاء مجموعة جديدة
+            document.getElementById('createGroupBtn').addEventListener('click', function() {
+                const groupName = document.getElementById('groupName').value.trim();
+                
+                if (groupName) {
+                    fetch('/groups/create', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ name: groupName })
+                    })
+                    .then(response => response.json())
+                    .then(group => {
+                        // إغلاق النافذة المنبثقة
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('createGroupModal'));
+                        modal.hide();
+                        
+                        // تحديث قائمة المجموعات
+                        loadUserGroups();
+                        
+                        // فتح المجموعة الجديدة
+                        setTimeout(() => {
+                            openChat(group.id, group.name, 'group');
+                        }, 500);
+                    })
+                    .catch(error => console.error('Error creating group:', error));
+                }
+            });
+            
+            // البحث عن المستخدمين
+            document.getElementById('userSearch').addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const userItems = document.querySelectorAll('#userList .user-item');
+                
+                userItems.forEach(item => {
+                    const userName = item.querySelector('.user-name').textContent.toLowerCase();
+                    if (userName.includes(searchTerm)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+            
+            // تحديث قائمة المستخدمين
+            document.getElementById('refreshUsers').addEventListener('click', loadActiveUsers);
+            
+            // التبديل بين القائمة الجانبية في الأجهزة المحمولة
+            document.querySelector('.toggle-sidebar').addEventListener('click', function() {
+                document.querySelector('.sidebar').classList.toggle('show');
+            });
+            
+            // تحميل البيانات الأولية
+            loadActiveUsers();
+            loadUserGroups();
+            
+            // تحديث قائمة المستخدمين كل 30 ثانية
+            setInterval(loadActiveUsers, 30000);
+        });
+    </script>
+</body>
+</html>
